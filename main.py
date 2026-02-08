@@ -2,7 +2,9 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 from pydantic import Field, BaseModel
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.globals import get_debug
+from typing import Optional
 import os
 
 load_dotenv()
@@ -10,30 +12,50 @@ load_dotenv()
 api_key = os.environ["OPENAI_API_KEY"]
 
 class Destino(BaseModel):
-    cidade: str = Field("A cidade a qual foi indicada.")
-    motivo: str = Field("O motivo para essa cidade ser escolhida")
 
-paseador = JsonOutputParser(pydantic_object=Destino)
+# Cidade
+    ruim_bom: Optional[str] = Field(description="Responda se a cidade é Boa ou Ruim para turismo. Apenas Boa ou Ruim")
+    motivo: Optional[str] = Field(description="O motivo o porquê essa cidade foi escolhida para o usuario")
+    score: Optional[float] = Field(description="Score do nivel de confiança de 0 a 1")
 
-llm = ChatOpenAI(api_key=api_key, model="gpt-3.5-turbo", temperature=0.8)
+class Restaurante(BaseModel):
 
-numero_dia = 7
-numero_crianca = 2
-atividade = "musica"
+# Restaurantes
+    restaurante: Optional[str] = Field(description="Algum restaurante muito bom para comer")
+    motivo: Optional[str] = Field(description="O motivo pelo restaurante ser escolhio")
+    score: Optional[float] = Field(description="Score do nivel de confiança de 0 a 1")
 
-prompt = PromptTemplate.from_template(
-"""Crie um roteiro de viagem de {numero_di} dias, 
-para uma familia com {numero_crianc} crianças e 
-indique uma atividade: {atividad}.
+passeador_destino = JsonOutputParser(pydantic_object=Destino)
+passeador_restaurante = JsonOutputParser(pydantic_object=Restaurante)
 
-{formato_saida}
+llm = ChatOpenAI(api_key=api_key, 
+                model="gpt-3.5-turbo",
+                temperature=0.2)
+
+interesse = "Paraty (RJ)"
+
+prompt1 = PromptTemplate.from_template(
+""" Quero ir para {cidade}. Me de algumas recomendações.
+    Se for ruim me traz uma cidade mais proxima que seja boa e do mesmo país.
+Formatação: {parser}
 """)
 
-chain = prompt | llm | StrOutputParser()
+prompt2 = PromptTemplate.from_template(
+"""Me de algumas recomendações de restaurante na cidade {cidade}.
 
-response = chain.invoke({"numero_di": numero_dia, 
-                         "numero_crianc": numero_crianca, 
-                         "atividad": atividade,
-                         "formato_saida": paseador.get_format_instructions()})
+Formatação: {parser}
+""")
+
+chain_destino = prompt1 | llm | passeador_destino
+
+chain_restaurante = prompt2 | llm | passeador_restaurante
+
+chain_dupla = (chain_destino | chain_restaurante)
+
+response = chain_destino.invoke({
+    "cidade": interesse,
+    "parser": chain_dupla
+})
+
 
 print(response)
