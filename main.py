@@ -2,9 +2,10 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 from pydantic import Field, BaseModel
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_core.globals import get_debug
 from typing import Optional
+from operator import itemgetter
 import os
 
 load_dotenv()
@@ -14,14 +15,14 @@ api_key = os.environ["OPENAI_API_KEY"]
 class Destino(BaseModel):
 
 # Cidade
-    ruim_bom: Optional[str] = Field(description="Responda se a cidade é Boa ou Ruim para turismo. Apenas Boa ou Ruim")
+    cidade: Optional[str] = Field(description="O nome da cidade em que foi recomendada")
     motivo: Optional[str] = Field(description="O motivo o porquê essa cidade foi escolhida para o usuario")
     score: Optional[float] = Field(description="Score do nivel de confiança de 0 a 1")
 
 class Restaurante(BaseModel):
 
 # Restaurantes
-    restaurante: Optional[str] = Field(description="Algum restaurante muito bom para comer")
+    restaurante: Optional[str] = Field(description="Algum restaurante muito bom para comer na cidade")
     motivo: Optional[str] = Field(description="O motivo pelo restaurante ser escolhio")
     score: Optional[float] = Field(description="Score do nivel de confiança de 0 a 1")
 
@@ -32,30 +33,32 @@ llm = ChatOpenAI(api_key=api_key,
                 model="gpt-3.5-turbo",
                 temperature=0.2)
 
-interesse = "Paraty (RJ)"
-
 prompt1 = PromptTemplate.from_template(
-""" Quero ir para {cidade}. Me de algumas recomendações.
-    Se for ruim me traz uma cidade mais proxima que seja boa e do mesmo país.
-Formatação: {parser}
-""")
+"""Sugira uma cidade que cobre meu interesse: {interesse}
+Formatação: {parser1}
+""",
+partial_variables={"parser1": passeador_destino.get_format_instructions()})
 
 prompt2 = PromptTemplate.from_template(
 """Me de algumas recomendações de restaurante na cidade {cidade}.
 
-Formatação: {parser}
-""")
+Formatação: {parser2}
+""",
+partial_variables={"parser2": passeador_restaurante.get_format_instructions()})
 
-chain_destino = prompt1 | llm | passeador_destino
+prompt3 = PromptTemplate.from_template("""Sugira atividades culturais na cidade: {cidade}""")
 
-chain_restaurante = prompt2 | llm | passeador_restaurante
+chain1 = prompt1 | llm | passeador_destino
+chain2 = prompt2 | llm | passeador_restaurante
+chain3 = prompt3 | llm | StrOutputParser()
 
-chain_dupla = (chain_destino | chain_restaurante)
+chain_tripla = (chain1 | {"cidade": itemgetter("cidade")} | chain2 | {"cidade": itemgetter("restaurante")} | chain3)
 
-response = chain_destino.invoke({
-    "cidade": interesse,
-    "parser": chain_dupla
-})
+response = chain_tripla.invoke(
+    {
+        "interesse": "praia"
+    }
+)
 
 
 print(response)
