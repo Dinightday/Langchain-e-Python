@@ -4,6 +4,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.caches import InMemoryCache
 from dotenv import load_dotenv
 from typing import Literal, TypedDict
+from langgraph.graph import StateGraph, START, END
+from langchain_core.runnables import RunnableConfig
+import asyncio
 import os
 
 load_dotenv()
@@ -43,18 +46,27 @@ prompt_roteador = ChatPromptTemplate(
     ]
 ) 
 
-chain_roteadora = prompt_roteador | client.with_structured_output(Rota)
+roteador = prompt_roteador | client.with_structured_output(Rota)
 
-def response(pergunta : str):
-    rota = chain_roteadora.invoke(
-        {
-            "query": pergunta
-        }
-    )
+class Estado(TypedDict):
+    query:str
+    destino:str
+    resposta:str
 
-    if rota["destino"] == "praia":
-        return chain_praia.invoke({"query": pergunta})
-    elif rota["destino"] == "montanha":
-        return chain_montanha.invoke({"query": pergunta})
+async def no_roteador(estado: Estado, config=RunnableConfig):
+    return {"destino": await roteador.ainvoke({"query": estado["query"]}, config)}
+async def no_praia(estado: Estado, config=RunnableConfig):
+    return {"resposta": await chain_praia.ainvoke({"query": estado["query"]}, config)}
+async def no_roteador(estado: Estado, config=RunnableConfig):
+    return {"resposta": await chain_montanha.ainvoke({"query": estado["query"]}, config)}
 
-print(response("Quero me divertir em um lugar quente no Brasil."))
+def escolher_no(estado: Estado) -> Literal["praia", "montanha"]:
+    return "praia" if estado["destino"]["destino"] == "praia" else "montanha"
+
+grafo = StateGraph(Estado)
+grafo.add_node("rotear", no_roteador)
+grafo.add_node("praia", no_roteador)
+grafo.add_node("montanha", no_roteador)
+
+grafo.add_edge(START, "rotear")
+grafo.add_conditional_edges("rotear", escolher_no)
