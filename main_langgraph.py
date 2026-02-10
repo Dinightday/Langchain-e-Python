@@ -61,7 +61,10 @@ async def no_montanha(estado: Estado, config=RunnableConfig):
     return {"resposta": await chain_montanha.ainvoke({"query": estado["query"]}, config)}
 
 def escolher_no(estado:Estado) -> Literal["praia", "montanha"]:
-    return "praia" if estado["destino"]["destino"] == "praia" else "montanha"
+    if estado["destino"]["destino"] == "praia":
+        return "praia"
+    else:
+        return "montanha"
 
 grafo = StateGraph(Estado)
 grafo.add_node("rotear", no_roteador)
