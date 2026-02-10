@@ -1,5 +1,4 @@
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -37,7 +36,6 @@ def historico_por_sessao(sessao: str):
 
 perguntas = [
     "Qual é a cor verdadeira do sol?",
-    "Quem foi Pedro Alvares Cabral?"
 ]
 
 cadeia_memoria = RunnableWithMessageHistory(
@@ -58,3 +56,5 @@ for pergunta in perguntas:
     print(f"Usuário: {pergunta}")
     print(f"IA: {response}")
     print("-"*80)
+    for key, value in memoria.items():
+        print(f"{key}: {value}")
