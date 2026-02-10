@@ -49,24 +49,38 @@ prompt_roteador = ChatPromptTemplate(
 roteador = prompt_roteador | client.with_structured_output(Rota)
 
 class Estado(TypedDict):
-    query:str
-    destino:str
-    resposta:str
+    query: str
+    destino: str
+    resposta: str
 
 async def no_roteador(estado: Estado, config=RunnableConfig):
     return {"destino": await roteador.ainvoke({"query": estado["query"]}, config)}
 async def no_praia(estado: Estado, config=RunnableConfig):
     return {"resposta": await chain_praia.ainvoke({"query": estado["query"]}, config)}
-async def no_roteador(estado: Estado, config=RunnableConfig):
+async def no_montanha(estado: Estado, config=RunnableConfig):
     return {"resposta": await chain_montanha.ainvoke({"query": estado["query"]}, config)}
 
-def escolher_no(estado: Estado) -> Literal["praia", "montanha"]:
+def escolher_no(estado:Estado) -> Literal["praia", "montanha"]:
     return "praia" if estado["destino"]["destino"] == "praia" else "montanha"
 
 grafo = StateGraph(Estado)
 grafo.add_node("rotear", no_roteador)
-grafo.add_node("praia", no_roteador)
-grafo.add_node("montanha", no_roteador)
+grafo.add_node("praia", no_praia)
+grafo.add_node("montanha", no_montanha)
 
 grafo.add_edge(START, "rotear")
 grafo.add_conditional_edges("rotear", escolher_no)
+grafo.add_edge("praia", END)
+grafo.add_edge("montanha", END)
+
+app = grafo.compile()
+
+async def main():
+    resposta = await app.ainvoke(
+        {
+            "query": "Quero visitar um lugar no Brasil famoso por praias e culturas"
+        }
+    )
+    print(resposta["resposta"])
+
+asyncio.run(main())
