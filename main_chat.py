@@ -56,5 +56,5 @@ for pergunta in perguntas:
     print(f"Usuário: {pergunta}")
     print(f"IA: {response}")
     print("-"*80)
-    for key, value in memoria.items():
-        print(f"{key}: {value}")
+    for history in memoria[sessao]:
+        print(f"historico: {history}")
